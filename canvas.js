@@ -1,5 +1,5 @@
 import { registerDrawUtils } from "./drawUtils";
-import { mouse, registerInput } from "./input";
+import { mouseAfterUpdate, registerInput } from "./input";
 import { init as bubbleInit } from "./bubbles";
 
 export const canvas = {};
@@ -67,8 +67,7 @@ function update(delta)
 {
 	updaters.forEach(updater => updater(delta));
 
-	mouse.upThisFrame = false;
-	mouse.downThisFrame = false;
+	mouseAfterUpdate();
 }
 
 export function init()

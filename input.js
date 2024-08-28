@@ -5,7 +5,8 @@ export const mouse = {
 	y: 0,
 	downThisFrame: false,
 	upThisFrame: false,
-	pressed: false
+	pressed: false,
+	wheelThisFrame: 0
 };
 
 export function registerInput()
@@ -31,6 +32,10 @@ export function registerInput()
 		mouse.y = e.offsetY;
 	});
 
+	el.addEventListener("wheel", (e) => {
+		mouse.wheelThisFrame = e.deltaY;
+	});
+
 	el.addEventListener("keydown", (e) => {
 		const cb = listeners.keyDown[e.key];
 		if (cb)
@@ -48,10 +53,14 @@ export function registerInput()
 	});
 }
 
-const listeners = {
-	keyDown: {},
-	keyUp: {}
-};
+export function mouseAfterUpdate()
+{
+	mouse.upThisFrame = false;
+	mouse.downThisFrame = false;
+	mouse.wheelThisFrame = 0;
+}
+
+let listeners = {};
 
 export function registerKeyDown(key, cb)
 {
@@ -62,3 +71,12 @@ export function registerKeyUp(key, cb)
 {
 	listeners.keyUp[key] = cb;
 }
+
+export function clearListeners()
+{
+	listeners = {
+		keyDown: {},
+		keyUp: {}
+	};
+}
+clearListeners();
