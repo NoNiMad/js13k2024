@@ -18,6 +18,16 @@ export function vec(x, y)
 	return { x, y };
 }
 
+export function mag(vec)
+{
+	return (vec.x ** 2 + vec.y ** 2) ** (1/2);
+}
+
+export function dist(x1, y1, x2, y2)
+{
+	return mag(vec(x2 - x1, y2 - y1));
+}
+
 export function normalize(x, y)
 {
 	if (typeof(x) == "object")
@@ -44,4 +54,9 @@ export function setMagnitude(vec, magnitude)
 		default:
 			return null;
 	}
+}
+
+export function bubbleColor(hue)
+{
+	return `hsla(${hue}, 100%, 80%, 1)`;
 }

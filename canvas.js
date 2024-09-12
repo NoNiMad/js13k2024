@@ -1,9 +1,32 @@
 import { registerDrawUtils } from "./drawUtils";
-import { mouseAfterUpdate, registerInput } from "./input";
-import { init as bubbleInit } from "./bubbles";
+import { registerInput, inputAfterLoop, clearListeners } from "./input";
+
+import * as menuScene from "./scenes/menu";
+import * as gameScene from "./scenes/game";
+import * as customGameScene from "./scenes/customGame";
 
 export const canvas = {};
 let ctx;
+
+export function init()
+{
+	const el = document.querySelector("canvas");
+	canvas.element = el;
+	canvas.boundingRect = el.getBoundingClientRect();
+	canvas.width = el.width;
+	canvas.height = el.height;
+	ctx = el.getContext("2d");
+
+	registerInput(el);
+	registerDrawUtils(ctx);
+
+	time = performance.now();
+	lastFrame = time - targetFrameDuration;
+
+	goToScene(scenes.menu);
+
+	loop();
+}
 
 const targetFps = 144, targetFrameDuration = 1000 / targetFps;
 let time, lastFrame;
@@ -20,30 +43,9 @@ function loop()
 		lastFrame = time;
 	}
 	
+	inputAfterLoop();
+
 	requestAnimationFrame(loop);
-}
-
-let renderers = [];
-let updaters = [];
-
-export function requestRender(cb)
-{
-	renderers.push(cb);
-}
-
-export function clearRenderers()
-{
-	renderers = [];
-}
-
-export function requestUpdate(cb)
-{
-	updaters.push(cb);
-}
-
-export function clearUpdaters()
-{
-	updaters.clear();
 }
 
 function render()
@@ -66,26 +68,40 @@ function render()
 function update(delta)
 {
 	updaters.forEach(updater => updater(delta));
-
-	mouseAfterUpdate();
 }
 
-export function init()
+let renderers = [];
+let updaters = [];
+
+export function registerRender(cb)
 {
-	const el = document.querySelector("canvas");
-	canvas.element = el;
-	canvas.boundingRect = el.getBoundingClientRect();
-	canvas.width = el.width;
-	canvas.height = el.height;
-	ctx = el.getContext("2d");
-
-	registerInput();
-	registerDrawUtils(ctx);
-
-	time = performance.now();
-	lastFrame = time - targetFrameDuration;
-
-	bubbleInit();
-
-	loop();
+	renderers.push(cb);
 }
+
+export function registerUpdate(cb)
+{
+	updaters.push(cb);
+}
+
+//#region Scenes
+
+export const scenes = {
+	menu: menuScene,
+	game: gameScene,
+	customGame: customGameScene
+};
+let currentScene = null;
+
+export function goToScene(scene, context)
+{
+	currentScene?.onLeave?.();
+
+	renderers = [];
+	updaters = [];
+	clearListeners();
+
+	currentScene = scene;
+	currentScene.onEnter(context);
+}
+
+//#endregion

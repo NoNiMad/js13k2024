@@ -1,4 +1,4 @@
 import { init } from "./canvas";
-import "./style.css"
+import "./style.css";
 
 window.addEventListener("load", init);

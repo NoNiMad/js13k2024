@@ -1,27 +1,20 @@
-import { canvas, requestRender, requestUpdate } from "./canvas";
-import { mouse, registerKeyDown } from "./input";
-import { clamp, normalize, randBool, randInt, setMagnitude, vec } from "./utils";
+import { canvas, goToScene, registerRender, registerUpdate, scenes } from "../canvas";
+import { keyboard, mouse, registerKeyDown } from "../input";
+import { bubbleColor, clamp, normalize, randBool, randInt, setMagnitude, vec } from "../utils";
 
-//let bubbleColors = [ "#E40303", "#FF8C00", "#FFED00", "#008026" ];//, "#004CFF", "#732982" ];
-//let bubbleColors = [ "red", "orange", "yellow", "green", "blue", "purple" ];
-let bubbleColors = [ "hsla(0, 100%, 80%, 1)", "hsla(90, 100%, 80%, 1)", "hsla(180, 100%, 80%, 1)", "hsla(270, 100%, 80%, 1)" ];
-//let bubbleColors = [ "#5BCEFA", "#F5A9B8", "#BBBBBB" ];
 const bubbleSize = 52;
 const lineLen = 13;
 const sideGridMargin = 39;
-const bubbleGrid = [];
-let gridOffsetValue = 0;
-let hoveredBubbles = [];
-
 const delayBetweenShots = 0.39;
-let timeSinceLastShot = delayBetweenShots;
-const nextValues = [];
-let changeableValue = 0;
-const shootBubbles = [];
-let shootingStartPos, shootingDir, shootMinX, shootMaxX;
 const shootSpeed = 13 * 80;
+const gravity = 13 * 50;
 
-const movingBubbles = [];
+//let bubbleColors = [ "#E40303", "#FF8C00", "#FFED00", "#008026" ];//, "#004CFF", "#732982" ];
+let gameConfig, bubbleColors;
+let bubbleGrid, gridOffsetValue, hoveredBubbles, movingBubbles;
+let nextValues, shootBubbles, shootColor, timeSinceLastShot, shotCount;
+let shootingStartPos, shootingDir, shootMinX, shootMaxX;
+let gameOver, score, scoreMultiplier;
 
 //#region Bubble Helpers
 
@@ -193,13 +186,23 @@ function getUnattachedBubbles()
 		if (firstRowBubble == null || !unexplored.has(firstRowBubble))
 			continue;
 
-		let toExplore = [ firstRowBubble ];
-		while (toExplore.length != 0)
+		let toExplore = new Set([ firstRowBubble ]);
+		let exploring;
+		let neighbors;
+		while (toExplore.size != 0)
 		{
-			toExplore = toExplore.flatMap(ex => {
-				unexplored.delete(ex);
-				return getNeighbors(ex).filter(n => unexplored.has(n));
-			});
+			exploring = toExplore.values().next().value;
+			unexplored.delete(exploring);
+			toExplore.delete(exploring);
+
+			neighbors = getNeighbors(exploring);
+			for (let i = 0; i < neighbors.length; i++)
+			{
+				if (unexplored.has(neighbors[i]))
+				{
+					toExplore.add(neighbors[i]);
+				}
+			}
 		}
 	}
 
@@ -215,13 +218,13 @@ function render(ctx)
 	// Grid side lines
 	const leftSideGradient = ctx.createLinearGradient(sideGridMargin, 0, 0, 0);
 	leftSideGradient.addColorStop(0, "#00000000");
-	leftSideGradient.addColorStop(1, bubbleColors[changeableValue]);
+	leftSideGradient.addColorStop(1, bubbleColors[shootColor]);
 	ctx.fillStyle = leftSideGradient;
 	ctx.fillRect(0, 0, sideGridMargin, canvas.height);
 
 	const rightSideGradient = ctx.createLinearGradient(canvas.width - sideGridMargin, 0, canvas.width, 0);
 	rightSideGradient.addColorStop(0, "#00000000");
-	rightSideGradient.addColorStop(1, bubbleColors[changeableValue]);
+	rightSideGradient.addColorStop(1, bubbleColors[shootColor]);
 	ctx.fillStyle = rightSideGradient;
 	ctx.fillRect(canvas.width - sideGridMargin, 0, canvas.width, canvas.height);
 
@@ -237,67 +240,97 @@ function render(ctx)
 		renderBubble(ctx, bubble.pos, bubble);
 	});
 
-	// Display hovered bubbles sum
-	if (hoveredBubbles.length > 0)
+	if (gameOver)
 	{
-		let sum = 0, maxY = 0, xSum = 0;
-		hoveredBubbles.forEach(bubble => {
-			sum += bubble.value;
-			xSum += bubble.pos.x;
-			maxY = Math.max(maxY, bubble.pos.y);
-		});
-		let textPos = { x: xSum / hoveredBubbles.length, y: maxY + bubbleSize };
+		ctx.fillStyle = "#FFFFFFBB";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 		ctx.fillStyle = "black";
-		ctx.disk(textPos.x, textPos.y, bubbleSize / 2);
-		const mod13 = sum % 13;
-		if (mod13 > 0)
-		{
-			ctx.fillText(`${sum - mod13} < ${sum - mod13 + 13}`, textPos.x, textPos.y + bubbleSize);
-		}
-		else if (mod13 < 0)
-		{
-			ctx.fillText(`${sum - mod13 - 13} < ${sum - mod13}`, textPos.x, textPos.y + bubbleSize);
-		}
+		ctx.font = "8em Calibri";
+		ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2 - 100);
 
-		ctx.fillStyle = "white";
-		ctx.fillText(sum, textPos.x, textPos.y);
+		ctx.font = "4em Calibri";
+		ctx.fillText("Score: " + score, canvas.width / 2, canvas.height / 2);
+
+		ctx.font = "1em Calibri";
+		ctx.fillText("Press Escape to go back to the main menu", canvas.width / 2, canvas.height / 2 + 200);
+		if (keyboard["Escape"])
+		{
+			goToScene(scenes.menu);
+		}
 	}
-
-	// Guide line
-	ctx.lineWidth = 2;
-	ctx.lineDir(shootingStartPos.x, shootingStartPos.y, shootingDir, bubbleSize * 2);
-
-	// Next bubbles
-	renderBubble(ctx, shootingStartPos, {
-		value: nextValues[0],
-		color: changeableValue
-	});
-	for (let i = 1; i < nextValues.length; i++)
+	else
 	{
-		const pos = vec(canvas.width / 2 + i * (bubbleSize + 13), canvas.height - bubbleSize / 2);
+		// Guide line
+		ctx.lineWidth = 2;
+		ctx.lineDir(shootingStartPos.x, shootingStartPos.y, shootingDir, bubbleSize * 2);
+
+		// Next bubbles
+		if (nextValues[0] != null)
+		{
+			renderBubble(ctx, shootingStartPos, {
+				value: nextValues[0],
+				color: shootColor
+			});
+		}
+		ctx.save();
+		ctx.translate(canvas.width / 2, canvas.height);
+		for (let i = 1; i < nextValues.length; i++)
+		{
+			ctx.fillStyle = "black";
+			ctx.fillText(nextValues[i], i * (bubbleSize + 13), -bubbleSize / 2);
+		}
+		ctx.restore();
+
+		// Shooting bubbles
+		for (let shootBubble of shootBubbles)
+		{
+			renderBubble(ctx, shootBubble.pos, shootBubble);
+		}
+		movingBubbles.forEach(b => renderBubble(ctx, b.pos, b));
+
+		ctx.textAlign = "left";
 		ctx.fillStyle = "black";
-		ctx.fillText(nextValues[i], pos.x, pos.y);
-	}
+		ctx.fillText("Score: " + score, sideGridMargin * 1.5, canvas.height - bubbleSize / 2);
 
-	// Shooting bubbles
-	for (let shootBubble of shootBubbles)
-	{
-		renderBubble(ctx, shootBubble.pos, shootBubble);
-	}
+		// Display hovered bubbles sum
+		if (hoveredBubbles.length > 0)
+		{
+			let sum = 0, maxY = 0, xSum = 0;
+			hoveredBubbles.forEach(bubble => {
+				sum += bubble.value;
+				xSum += bubble.pos.x;
+				maxY = Math.max(maxY, bubble.pos.y);
+			});
+			let textPos = { x: xSum / hoveredBubbles.length, y: maxY + bubbleSize };
 
-	movingBubbles.forEach(b => renderBubble(ctx, b.pos, b));
+			ctx.fillStyle = "black";
+			ctx.disk(textPos.x, textPos.y, bubbleSize / 2);
 
-	for (const pos of debugPos)
-	{
-		ctx.fillStyle = "#FF000077";
-		ctx.disk(pos.x, pos.y, bubbleSize / 2);
+			ctx.font = "30px Calibri";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+
+			const mod13 = sum % 13;
+			if (mod13 > 0)
+			{
+				ctx.fillText(`${sum - mod13} < ${sum - mod13 + 13}`, textPos.x, textPos.y + bubbleSize);
+			}
+			else if (mod13 < 0)
+			{
+				ctx.fillText(`${sum - mod13 - 13} < ${sum - mod13}`, textPos.x, textPos.y + bubbleSize);
+			}
+
+			
+			ctx.fillStyle = "white";
+			ctx.fillText(sum, textPos.x, textPos.y);
+		}
 	}
 }
 
 function renderBubble(ctx, pos, bubble)
 {
-	const gradient = ctx.createRadialGradient(pos.x + 13, pos.y - 13, bubbleSize / 13, pos.x, pos.y, bubbleSize / 2);
+	const gradient = ctx.createRadialGradient(pos.x + bubbleSize / 4, pos.y - bubbleSize / 4, bubbleSize / 13, pos.x, pos.y, bubbleSize / 2);
 	gradient.addColorStop(0, "white");
 	gradient.addColorStop(1, bubbleColors[bubble.color]);
 	ctx.fillStyle = gradient;
@@ -310,6 +343,9 @@ function renderBubble(ctx, pos, bubble)
 		ctx.circle(pos.x, pos.y, bubbleSize / 2 - 1);
 	}
 
+	ctx.font = "30px Calibri";
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
 	ctx.fillStyle = "black";
 	ctx.fillText(bubble.value, pos.x, pos.y);
 }
@@ -317,11 +353,14 @@ function renderBubble(ctx, pos, bubble)
 //#endregion
 
 //#region Update
-let score = 0;
-const gravity = 13 * 50;
 
 function update(delta)
 {
+	if (gameOver)
+	{
+		return;
+	}
+
 	for (let i = movingBubbles.length - 1; i >= 0; i--)
 	{
 		const bubble = movingBubbles[i];
@@ -330,6 +369,7 @@ function update(delta)
 			|| bubble.pos.y > canvas.height + bubbleSize)
 		{
 			movingBubbles.splice(i, 1);
+			scoreBubble(bubble);
 			continue;
 		}
 
@@ -340,7 +380,6 @@ function update(delta)
 
 	shootingDir = normalize(mouse.x - shootingStartPos.x, Math.min(mouse.y, shootingStartPos.y - 13) - shootingStartPos.y);
 	updateShootBubbles(delta);
-
 	updateHoveredBubbles();
 }
 
@@ -355,7 +394,7 @@ function updateShootBubbles(delta)
 	if (mouse.wheelThisFrame != 0)
 	{
 		let change = mouse.wheelThisFrame > 0 ? -1 : 1;
-		let newValue = changeableValue + change;
+		let newValue = shootColor + change;
 		if (newValue >= bubbleColors.length)
 		{
 			newValue = 0;
@@ -364,19 +403,42 @@ function updateShootBubbles(delta)
 		{
 			newValue = bubbleColors.length - 1;
 		}
-		changeableValue = newValue;
+		shootColor = newValue;
+
+		zzfx(...[.4,0,55,.03,.01,.03,4,2,,6,-353,.11,,,,,,.55,.03,,-604]);
 	}
 
-	if (timeSinceLastShot > delayBetweenShots && mouse.downThisFrame)
+	if (timeSinceLastShot > delayBetweenShots)
 	{
-		shootBubbles.push({
-			value: nextValues.shift(),
-			color: changeableValue,
-			pos: { ...shootingStartPos },
-			speed: vec(shootingDir.x * shootSpeed, shootingDir.y * shootSpeed),
-		});
-		nextValues.push(pickRandomValue());
-		timeSinceLastShot = 0;
+		if (nextValues[0] == null)
+		{
+			nextValues.shift();
+			nextValues.push(pickRandomValue());
+		}
+
+		if (mouse.downThisFrame)
+		{
+			shootBubbles.push({
+				value: nextValues[0],
+				color: shootColor,
+				pos: { ...shootingStartPos },
+				speed: vec(shootingDir.x * shootSpeed, shootingDir.y * shootSpeed),
+			});
+			nextValues[0] = null;
+			timeSinceLastShot = 0;
+			shotCount++;
+	
+			if (shotCount % 5 == 0)
+			{
+				pushRandomBubbleLine();
+				if (bubbleGrid.length == 26)
+				{
+					loose();
+				}
+			}
+	
+			zzfx(...[,,354,,,0,,3.6,-6,5,,,,,,,,0,.19]);
+		}
 	}
 	else
 	{
@@ -402,14 +464,12 @@ function updateShootBubbles(delta)
 
 		if (shootBubble.pos.y < bubbleSize / 2)
 		{
-			//debugPos.push(shootBubble.pos);
 			const distToRewind = bubbleSize / 2 - shootBubble.pos.y;
 			const dirToRewind = normalize(shootBubble.speed);
 			const rewindedPos = vec(
 				shootBubble.pos.x - dirToRewind.x * distToRewind,
 				shootBubble.pos.y - dirToRewind.y * distToRewind
 			);
-			//debugPos.push(rewindedPos);
 			handleBubbleCollision(shootBubble, rewindedPos);
 		}
 		else
@@ -418,14 +478,12 @@ function updateShootBubbles(delta)
 				const dist = distToBubble(shootBubble.pos, bubble);
 				if (dist <= bubbleSize)
 				{
-					//debugPos.push(shootBubble.pos);
 					const distToRewind = bubbleSize - dist;
 					const dirToRewind = normalize(shootBubble.speed);
 					const rewindedPos = vec(
 						shootBubble.pos.x - dirToRewind.x * distToRewind,
 						shootBubble.pos.y - dirToRewind.y * distToRewind
 					);
-					//debugPos.push(rewindedPos);
 					handleBubbleCollision(shootBubble, rewindedPos);
 					return false;
 				}
@@ -441,7 +499,7 @@ function handleBubbleCollision(movingBubble, pos)
 	const gridPos = screenPosToGrid(pos, true);
 	if (gridPos.y > 25)
 	{
-		// TODO - LOST
+		loose();
 		return;
 	}
 
@@ -458,9 +516,6 @@ function handleBubbleCollision(movingBubble, pos)
 	const zoneSum = newZone.reduce((acc, b) => acc + b.value, 0);
 	if (zoneSum % 13 == 0)
 	{
-		console.log(`Made of zone of ${zoneSum} = ${zoneSum / 13} * 13`);
-		console.log(newZone);
-
 		newZone.forEach(b => {
 			bubbleGrid[b.gridPos.y][b.gridPos.x] = null;
 			b.speed = b == movingBubble
@@ -477,6 +532,8 @@ function handleBubbleCollision(movingBubble, pos)
 			delete b.gridPos;
 		});
 		movingBubbles.push(...unattachedBubbles);
+
+		zzfx(...[.3,.3,,.02,.27,.41,,3.7,7,,,,.21,,,.3,,.4,.27]);
 	}
 	else
 	{
@@ -484,30 +541,104 @@ function handleBubbleCollision(movingBubble, pos)
 	}
 }
 
+function scoreBubble(bubble)
+{
+	score += Math.abs(bubble.value);
+}
+
+function loose()
+{
+	gameOver = true;
+	hoveredBubbles = [];
+}
+
 //#endregion
 
-let debugPos = [];
-export function init()
+//#region Scene Setup
+
+export function onEnter(context)
 {
-	requestRender(render);
-	requestUpdate(update);
+	registerRender(render);
+	registerUpdate(update);
 
 	registerKeyDown("l", () => {
 		pushRandomBubbleLine();
 	});
 
-	registerKeyDown("c", () => {
-		debugPos = [];
-		console.log(bubbleGrid);
+	const music = zzfxM(...[[[,0,400]],[[[,6,,8,,10,,,,12,,,,8,,,14,,,,]]],[0,0],,{"title":"s","instruments":["0"],"patterns":["0"]}]);
+
+	registerKeyDown("m", () => {
+		gameOver = true;
+		zzfxP(...music);
 	});
+
+	bubbleGrid = [];
+	hoveredBubbles = [];
+	movingBubbles = [];
+	gridOffsetValue = 0;
+
+	shootBubbles = [];
+	shootColor = 0;
+	shotCount = 0;
+	timeSinceLastShot = delayBetweenShots;
 
 	shootingStartPos = vec(canvas.width / 2, canvas.height - bubbleSize);
 	shootMinX = sideGridMargin + bubbleSize / 2;
 	shootMaxX = canvas.width - sideGridMargin - bubbleSize / 2;
+
+	gameOver = false;
+	score = 0;
+	scoreMultiplier = 1;
 	
-	for (let i = 0; i < 5; i++)
+	if (context.difficulty !== undefined)
 	{
-		nextValues.push(pickRandomValue());
+		switch (context.difficulty)
+		{
+			case 0:
+				gameConfig = {
+					initialLines: 3,
+					numberOfColors: 2,
+					nextValuesCount: 5
+				};
+				break;
+			case 1:
+				gameConfig = {
+					initialLines: 5,
+					numberOfColors: 3,
+					nextValuesCount: 4
+				};
+				break;
+			case 2:
+				gameConfig = {
+					initialLines: 7,
+					numberOfColors: 4,
+					nextValuesCount: 3
+				};
+				break;
+		}
+	}
+	else
+	{
+		gameConfig = context.gameConfig;
+	}
+	
+	bubbleColors = [];
+	const colorStart = randInt(0, 360);
+	for (let i = 0; i < gameConfig.numberOfColors; i++)
+	{
+		bubbleColors.push(bubbleColor(colorStart + i * 360 / gameConfig.numberOfColors));
+	}
+
+	for (let i = 0; i < gameConfig.initialLines; i++)
+	{
 		pushRandomBubbleLine();
 	}
+
+	nextValues = [];
+	for (let i = 0; i < gameConfig.nextValuesCount; i++)
+	{
+		nextValues.push(pickRandomValue());
+	}
 }
+
+//#endregion
