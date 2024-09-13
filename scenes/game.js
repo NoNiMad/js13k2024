@@ -447,24 +447,16 @@ function updateShootBubbles(delta)
 
 		if (mouse.down)
 		{
+			shotCount++;
 			shootBubbles.push({
 				value: nextValues[0],
 				color: shootColor,
 				pos: { ...shootingStartPos },
 				speed: vec(shootingDir.x * shootSpeed, shootingDir.y * shootSpeed),
+				addLineOnCollision: shotCount % gameConfig.shotsBetweenLine == 0
 			});
 			nextValues[0] = null;
 			timeSinceLastShot = 0;
-			shotCount++;
-	
-			if (shotCount % 5 == 0)
-			{
-				pushRandomBubbleLine();
-				if (bubbleGrid.length > 26)
-				{
-					loose();
-				}
-			}
 	
 			playSound("shoot");
 		}
@@ -574,6 +566,15 @@ function handleBubbleCollision(movingBubble, pos)
 	{
 		movingBubble.pos = gridToScreenPos(gridPos);
 	}
+
+	if (movingBubble.addLineOnCollision)
+	{
+		pushRandomBubbleLine();
+		if (bubbleGrid.length > 26)
+		{
+			loose();
+		}
+	}
 }
 
 function scoreBubble(bubble)
@@ -640,21 +641,24 @@ export function onEnter(context)
 				gameConfig = {
 					initialLines: 3,
 					numberOfColors: 2,
-					nextValuesCount: 5
+					nextValuesCount: 5,
+					shotsBetweenLine: 5
 				};
 				break;
 			case 1:
 				gameConfig = {
 					initialLines: 5,
 					numberOfColors: 3,
-					nextValuesCount: 4
+					nextValuesCount: 4,
+					shotsBetweenLine: 5
 				};
 				break;
 			case 2:
 				gameConfig = {
 					initialLines: 7,
 					numberOfColors: 4,
-					nextValuesCount: 3
+					nextValuesCount: 3,
+					shotsBetweenLine: 5
 				};
 				break;
 		}
