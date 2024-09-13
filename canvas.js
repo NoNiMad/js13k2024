@@ -8,7 +8,7 @@ import { initZZFX, playMusic } from "./sounds";
 
 export const canvas = {};
 let ctx;
-let scale = 1;
+export let scale = 1;
 
 export function init()
 {

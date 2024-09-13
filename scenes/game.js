@@ -1,4 +1,4 @@
-import { canvas, goToScene, registerRender, registerUpdate, scenes } from "../canvas";
+import { canvas, goToScene, registerRender, registerUpdate, scale, scenes } from "../canvas";
 import { mouse, registerKeyUp } from "../input";
 import { playSound, toggleMute } from "../sounds";
 import { bubbleColor, clamp, normalize, randInt, setMagnitude, vec } from "../utils";
@@ -375,7 +375,7 @@ function update(delta)
 {
 	if (gameOver)
 	{
-		if (mouse.down)
+		if (mouse.up)
 		{
 			goToScene(scenes.menu);
 		}
@@ -384,7 +384,7 @@ function update(delta)
 
 	if (paused)
 	{
-		if (mouse.down)
+		if (mouse.up)
 		{
 			paused = false;
 		}
@@ -408,14 +408,14 @@ function update(delta)
 		bubble.pos.y += bubble.speed.y * delta;
 	}
 
-	shootingDir = normalize(mouse.x - shootingStartPos.x, Math.min(mouse.y, shootingStartPos.y - 13) - shootingStartPos.y);
+	shootingDir = normalize(mouse.x / scale - shootingStartPos.x, Math.min(mouse.y / scale, shootingStartPos.y - 13) - shootingStartPos.y);
 	updateShootBubbles(delta);
 	updateHoveredBubbles();
 }
 
 function updateHoveredBubbles()
 {
-	const bubbleAtMouse = getBubbleFromScreenPos(vec(mouse.x, mouse.y));
+	const bubbleAtMouse = getBubbleFromScreenPos(vec(mouse.x / scale, mouse.y / scale));
 	hoveredBubbles = bubbleAtMouse != null ? getSameColorZone(bubbleAtMouse) : [];
 }
 

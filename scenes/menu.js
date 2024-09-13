@@ -1,4 +1,4 @@
-import { canvas, registerRender, registerUpdate, scenes, goToScene } from "../canvas";
+import { canvas, registerRender, registerUpdate, scenes, goToScene, scale } from "../canvas";
 import { mouse, registerKeyUp } from "../input";
 import { bubbleColor, dist } from "../utils";
 import { playSound, toggleMute } from "../sounds";
@@ -54,7 +54,7 @@ function bubbleButton(ctx, x, y, radius, color, text, textSize, clickable)
 		return false;
 
 	const absolutePoint = new DOMPoint(x, y).matrixTransform(ctx.getTransform());
-	const mouseOnButton = dist(absolutePoint.x, absolutePoint.y, mouse.x, mouse.y) < radius;
+	const mouseOnButton = dist(absolutePoint.x, absolutePoint.y, mouse.x, mouse.y) < radius * scale;
 
 	if (mouseOnButton)
 	{
