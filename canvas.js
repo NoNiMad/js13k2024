@@ -7,6 +7,7 @@ import * as customGameScene from "./scenes/customGame";
 
 export const canvas = {};
 let ctx;
+let scale = 1;
 
 export function init()
 {
@@ -23,9 +24,19 @@ export function init()
 	time = performance.now();
 	lastFrame = time - targetFrameDuration;
 
+	window.addEventListener("resize", resize);
+	resize();
+
 	goToScene(scenes.menu);
 
 	loop();
+}
+
+function resize()
+{
+	scale = Math.min(window.innerHeight / 1280, 1);
+	canvas.element.width = 720 * scale;
+	canvas.element.height = 1280 * scale;
 }
 
 const targetFps = 144, targetFrameDuration = 1000 / targetFps;
@@ -51,6 +62,7 @@ function loop()
 function render()
 {
 	ctx.save();
+	ctx.scale(scale, scale);
 
 	// Clear screen
 	ctx.fillStyle = "white";
