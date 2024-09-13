@@ -4,6 +4,7 @@ import { registerInput, inputAfterLoop, clearListeners } from "./input";
 import * as menuScene from "./scenes/menu";
 import * as gameScene from "./scenes/game";
 import * as customGameScene from "./scenes/customGame";
+import { initZZFX, playMusic } from "./sounds";
 
 export const canvas = {};
 let ctx;
@@ -26,6 +27,11 @@ export function init()
 
 	window.addEventListener("resize", resize);
 	resize();
+
+	el.addEventListener("focus", () => {
+		initZZFX();
+		playMusic();
+	}, { once: true });
 
 	goToScene(scenes.menu);
 

@@ -48,6 +48,9 @@ export function registerInput(el)
 	});
 
 	el.addEventListener("keyup", (e) => {
+		if (!keyboard[e.key])
+			keyboard[e.key] = {};
+
 		keyboard[e.key].up = true;
 		keyboard[e.key].pressed = false;
 		const cb = listeners.keyUp[e.key];

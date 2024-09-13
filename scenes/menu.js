@@ -1,7 +1,7 @@
 import { canvas, registerRender, registerUpdate, scenes, goToScene } from "../canvas";
-import { mouse } from "../input";
+import { mouse, registerKeyUp } from "../input";
 import { bubbleColor, dist } from "../utils";
-import { playSound } from "../sounds";
+import { playSound, toggleMute } from "../sounds";
 import * as background from "../background";
 
 function render(ctx)
@@ -75,6 +75,10 @@ export function onEnter()
 	registerRender(background.render);
 
 	registerRender(render);
+
+	registerKeyUp("m", () => {
+		toggleMute();
+	});
 }
 
 export function onLeave()

@@ -1,5 +1,5 @@
 import { canvas, goToScene, registerRender, registerUpdate, scenes } from "../canvas";
-import { keyboard, mouse, registerKeyDown, registerKeyUp } from "../input";
+import { mouse, registerKeyUp } from "../input";
 import { playSound, toggleMute } from "../sounds";
 import { bubbleColor, clamp, normalize, randInt, setMagnitude, vec } from "../utils";
 import * as background from "../background";
@@ -613,8 +613,6 @@ export function onEnter(context)
 	registerKeyUp("m", () => {
 		toggleMute();
 	});
-
-	const music = zzfxM(...[[[,0,400]],[[[,6,,8,,10,,,,12,,,,8,,,14,,,,]]],[0,0],,{"title":"s","instruments":["0"],"patterns":["0"]}]);
 
 	bubbleGrid = [];
 	hoveredBubbles = [];
