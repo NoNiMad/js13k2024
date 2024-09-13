@@ -262,7 +262,8 @@ function render(ctx)
 
 		ctx.textAlign = "left";
 		ctx.fillStyle = "black";
-		ctx.fillText("Score: " + score, sideGridMargin * 1.5, canvas.height - bubbleSize / 2);
+		ctx.fillText("Score: " + score, sideGridMargin * 1.5, canvas.height - bubbleSize);
+		ctx.fillText("Next line in: " + (gameConfig.shotsBetweenLine - shotCount % gameConfig.shotsBetweenLine), sideGridMargin * 1.5, canvas.height - bubbleSize / 2);
 
 		renderHints(ctx);
 	}
