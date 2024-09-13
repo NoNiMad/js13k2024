@@ -29,7 +29,7 @@ let muted = false;
 
 export function initZZFX()
 {
-	zzfxX = new(top.AudioContext||webkitAudioContext);
+	zzfxX = new AudioContext();
 	music = zzfxM(...[[[,0,300,,,.3,,2,,,,,.1,,1,,.4,,.1,.2]],[[[,,15,19,22,20,19,15,19,17,15,12,15,22,20,24,22,20,19,15,17,26,27,31,34,22,24,20,22,19,15,27,26,,],[,,15,,10,,12,,7,,8,,3,,8,,10,,15,,10,,12,,7,,8,,3,,8,,10,,]]],[0],25,{"title":"Canon In D","instruments":["0"],"patterns":["0"]}]);
 }
 
