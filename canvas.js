@@ -35,7 +35,7 @@ export function init()
 function resize()
 {
 	scale = Math.min(window.innerHeight / 1280, 1);
-	canvas.element.width = 720 * scale;
+	canvas.element.width = 780 * scale;
 	canvas.element.height = 1280 * scale;
 }
 
