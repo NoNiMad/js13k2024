@@ -60,7 +60,11 @@ function render()
 	ctx.fillStyle = "black";
 	ctx.fillText(Math.floor(1000 / (time - lastFrame)), 10, 20);
 
-	renderers.forEach(renderer => renderer(ctx));
+	renderers.forEach(renderer => {
+		ctx.save();
+		renderer(ctx);
+		ctx.restore();
+	});
 
 	ctx.restore();
 }

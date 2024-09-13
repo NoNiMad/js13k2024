@@ -24,6 +24,22 @@ const utils = {
 		this.moveTo(x1, y1);
 		this.lineTo(x2, y2);
 		this.stroke();
+	},
+	"fontSize": function (v)
+	{
+		this.font = v + "em Calibri";
+	},
+	"textCenter": function ()
+	{
+		this.textAlign = "center";
+		this.textBaseline = "middle";
+	},
+	"bubbleGradient": function (x, y, radius, color)
+	{
+		const gradient = this.createRadialGradient(x + radius / 2, y - radius / 2, radius / 13, x, y, radius);
+		gradient.addColorStop(0, "white");
+		gradient.addColorStop(1, color);
+		this.fillStyle = gradient;
 	}
 }
 

@@ -1,10 +1,10 @@
 export const mouse = {
 	x: 0,
 	y: 0,
-	downThisFrame: false,
-	upThisFrame: false,
+	down: false,
+	up: false,
 	pressed: false,
-	wheelThisFrame: 0
+	wheel: 0
 };
 
 export let keyboard = [];
@@ -14,15 +14,15 @@ export function registerInput(el)
 	el.addEventListener("mousedown", (e) => {
 		mouse.x = e.offsetX;
 		mouse.y = e.offsetY;
+		mouse.down = true;
 		mouse.pressed = true;
-		mouse.downThisFrame = true;
 	});
 
 	el.addEventListener("mouseup", (e) => {
 		mouse.x = e.offsetX;
 		mouse.y = e.offsetY;
+		mouse.up = true;
 		mouse.pressed = false;
-		mouse.upThisFrame = true;
 	});
 
 	el.addEventListener("mousemove", (e) => {
@@ -31,11 +31,15 @@ export function registerInput(el)
 	});
 
 	el.addEventListener("wheel", (e) => {
-		mouse.wheelThisFrame = e.deltaY;
+		mouse.wheel = e.deltaY;
 	});
 
 	el.addEventListener("keydown", (e) => {
-		keyboard[e.key] = true;
+		if (!keyboard[e.key])
+			keyboard[e.key] = {};
+
+		keyboard[e.key].down = true;
+		keyboard[e.key].pressed = true;
 		const cb = listeners.keyDown[e.key];
 		if (cb)
 		{
@@ -44,7 +48,8 @@ export function registerInput(el)
 	});
 
 	el.addEventListener("keyup", (e) => {
-		keyboard[e.key] = false;
+		keyboard[e.key].up = true;
+		keyboard[e.key].pressed = false;
 		const cb = listeners.keyUp[e.key];
 		if (cb)
 		{
@@ -55,9 +60,15 @@ export function registerInput(el)
 
 export function inputAfterLoop()
 {
-	mouse.upThisFrame = false;
-	mouse.downThisFrame = false;
-	mouse.wheelThisFrame = 0;
+	mouse.up = false;
+	mouse.down = false;
+	mouse.wheel = 0;
+
+	for (const key of keyboard)
+	{
+		key.up = false;
+		key.down = false;
+	}
 }
 
 let listeners = {};

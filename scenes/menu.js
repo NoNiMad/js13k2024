@@ -1,65 +1,79 @@
 import { canvas, registerRender, registerUpdate, scenes, goToScene } from "../canvas";
 import { mouse } from "../input";
 import { bubbleColor, dist } from "../utils";
+import { playSound } from "../sounds";
+import * as background from "../background";
 
 function render(ctx)
 {
-	ctx.font = "8em Calibri";
-	ctx.textAlign = "center";
+	ctx.fontSize(8);
+	ctx.textCenter();
 	ctx.fillText("13 Bubbles", canvas.width / 2, 200);
 
 	ctx.save();
 	ctx.translate(300, 600);
 	const playBtnRadius = 130;
-	bubbleButton(ctx, 0, 0, playBtnRadius, bubbleColor(180), "Play", 6);
+	bubbleButton(ctx, 0, 0, playBtnRadius, bubbleColor(180), "Play", 6, false);
 
 	if (bubbleButton(ctx, playBtnRadius * 1.3, -playBtnRadius, 60, bubbleColor(90), "Easy", 2))
 	{
+		playSound("interact");
 		goToScene(scenes.game, { difficulty: 0 });
 	}
 
 	if (bubbleButton(ctx, playBtnRadius * 1.7, 0, 60, bubbleColor(50), "Normal", 2))
 	{
+		playSound("interact");
 		goToScene(scenes.game, { difficulty: 1 });
 	}
 
 	if (bubbleButton(ctx, playBtnRadius * 1.3, playBtnRadius, 60, bubbleColor(0), "Hard", 2))
 	{
+		playSound("interact");
 		goToScene(scenes.game, { difficulty: 2 });
 	}
-
-	/*
-	if (bubbleButton(ctx, 0, playBtnRadius * 1.5, 40, bubbleColor(320), "Custom", 1))
-	{
-		console.log("Custom");
-	}
-	*/
 	ctx.restore();
+
+	ctx.fontSize(2);
+	ctx.fillText("Made by @NoNiMad", canvas.width / 2, canvas.height - 60);
+	ctx.fontSize(1);
+	ctx.fillText("Using zzfx(m)", canvas.width / 2, canvas.height - 30);
 }
 
-function bubbleButton(ctx, x, y, radius, color, text, fontSize)
+function bubbleButton(ctx, x, y, radius, color, text, textSize, clickable)
 {
-	const gradient = ctx.createRadialGradient(x + radius / 2, y - radius / 2, radius / 13, x, y, radius);
-	gradient.addColorStop(0, "white");
-	gradient.addColorStop(1, color);
-	ctx.fillStyle = gradient;
+	ctx.bubbleGradient(x, y, radius, color);
 	ctx.disk(x, y, radius);
 
-	ctx.font = fontSize + "em Calibri";
-	ctx.textAlign = "center";
-	ctx.textBaseline = "middle";
+	ctx.fontSize(textSize);
+	ctx.textCenter();
 	ctx.fillStyle = "black";
 	ctx.fillText(text, x, y);
 
-	if (!mouse.upThisFrame)
+	if (clickable === false)
 		return false;
 
 	const absolutePoint = new DOMPoint(x, y).matrixTransform(ctx.getTransform());
-	return dist(absolutePoint.x, absolutePoint.y, mouse.x, mouse.y) < radius;
+	const mouseOnButton = dist(absolutePoint.x, absolutePoint.y, mouse.x, mouse.y) < radius;
+
+	if (mouseOnButton)
+	{
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = "black";
+		ctx.circle(x, y, radius);
+
+		if (mouse.up)
+			return true;
+	}
+
+	return false;
 }
 
 export function onEnter()
 {
+	registerUpdate(background.update);
+	registerRender(background.render);
+
 	registerRender(render);
 }
 

@@ -1,6 +1,8 @@
 import { canvas, goToScene, registerRender, registerUpdate, scenes } from "../canvas";
-import { keyboard, mouse, registerKeyDown } from "../input";
-import { bubbleColor, clamp, normalize, randBool, randInt, setMagnitude, vec } from "../utils";
+import { keyboard, mouse, registerKeyDown, registerKeyUp } from "../input";
+import { playSound, toggleMute } from "../sounds";
+import { bubbleColor, clamp, normalize, randInt, setMagnitude, vec } from "../utils";
+import * as background from "../background";
 
 const bubbleSize = 52;
 const lineLen = 13;
@@ -14,7 +16,7 @@ let gameConfig, bubbleColors;
 let bubbleGrid, gridOffsetValue, hoveredBubbles, movingBubbles;
 let nextValues, shootBubbles, shootColor, timeSinceLastShot, shotCount;
 let shootingStartPos, shootingDir, shootMinX, shootMaxX;
-let gameOver, score, scoreMultiplier;
+let paused, gameOver, score;
 
 //#region Bubble Helpers
 
@@ -34,6 +36,7 @@ function createRandomBubble()
 
 function pushRandomBubbleLine()
 {
+	clearEmptyLines();
 	bubbleGrid.unshift([]);
 	gridOffsetValue += 1;
 	for (let i = 0; i < lineLen; i++)
@@ -45,6 +48,20 @@ function pushRandomBubbleLine()
 		b.gridPos = vec(x, y);
 		b.pos = gridToScreenPos(b.gridPos);
 	});
+}
+
+function clearEmptyLines()
+{
+	for (let y = bubbleGrid.length - 1; y >= 0; y--)
+	{
+		for (let x = 0; x < lineLen; x++)
+		{
+			if (bubbleGrid[y][x] !== null)
+				return;
+		}
+
+		bubbleGrid.splice(y, 1);
+	}
 }
 
 //#endregion
@@ -78,11 +95,6 @@ function getBubbleFromScreenPos(pos)
 function distToBubble(pos, bubble)
 {
 	return ((pos.x - bubble.pos.x) ** 2 + (pos.y - bubble.pos.y) ** 2) ** 0.5;
-}
-
-function isInsideBubble(pos, bubble)
-{
-	return distToBubble(pos, bubble) <= bubbleSize / 2;
 }
 
 function getLineModulo(y)
@@ -233,54 +245,13 @@ function render(ctx)
 	ctx.line(canvas.width - sideGridMargin + 1, 0, canvas.width - sideGridMargin + 1, canvas.height);
 
 	// Render grid
-	ctx.font = "30px Calibri";
-	ctx.textAlign = "center";
-	ctx.textBaseline = "middle";
 	visitBubbleGrid((x, y, bubble) => {
 		renderBubble(ctx, bubble.pos, bubble);
 	});
 
-	if (gameOver)
+	if (!gameOver)
 	{
-		ctx.fillStyle = "#FFFFFFBB";
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		ctx.fillStyle = "black";
-		ctx.font = "8em Calibri";
-		ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2 - 100);
-
-		ctx.font = "4em Calibri";
-		ctx.fillText("Score: " + score, canvas.width / 2, canvas.height / 2);
-
-		ctx.font = "1em Calibri";
-		ctx.fillText("Press Escape to go back to the main menu", canvas.width / 2, canvas.height / 2 + 200);
-		if (keyboard["Escape"])
-		{
-			goToScene(scenes.menu);
-		}
-	}
-	else
-	{
-		// Guide line
-		ctx.lineWidth = 2;
-		ctx.lineDir(shootingStartPos.x, shootingStartPos.y, shootingDir, bubbleSize * 2);
-
-		// Next bubbles
-		if (nextValues[0] != null)
-		{
-			renderBubble(ctx, shootingStartPos, {
-				value: nextValues[0],
-				color: shootColor
-			});
-		}
-		ctx.save();
-		ctx.translate(canvas.width / 2, canvas.height);
-		for (let i = 1; i < nextValues.length; i++)
-		{
-			ctx.fillStyle = "black";
-			ctx.fillText(nextValues[i], i * (bubbleSize + 13), -bubbleSize / 2);
-		}
-		ctx.restore();
+		renderShootingArea(ctx);		
 
 		// Shooting bubbles
 		for (let shootBubble of shootBubbles)
@@ -293,47 +264,93 @@ function render(ctx)
 		ctx.fillStyle = "black";
 		ctx.fillText("Score: " + score, sideGridMargin * 1.5, canvas.height - bubbleSize / 2);
 
-		// Display hovered bubbles sum
-		if (hoveredBubbles.length > 0)
+		renderHints(ctx);
+	}
+
+	if (gameOver || paused)
+	{
+		ctx.textCenter();
+
+		ctx.fillStyle = "#FFFFFFBB";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+		ctx.fillStyle = "black";
+		ctx.fontSize(8);
+		ctx.fillText(gameOver ? "Game Over!" : "Paused", canvas.width / 2, canvas.height / 2 - 100);
+
+		ctx.fontSize(4);
+		ctx.fillText("Score: " + score, canvas.width / 2, canvas.height / 2);
+
+		ctx.fontSize(1);
+		ctx.fillText("Click anywhere to " + (gameOver ? "go back to the main menu" : "resume game"), canvas.width / 2, canvas.height / 2 + 200);
+
+		if (paused)
 		{
-			let sum = 0, maxY = 0, xSum = 0;
-			hoveredBubbles.forEach(bubble => {
-				sum += bubble.value;
-				xSum += bubble.pos.x;
-				maxY = Math.max(maxY, bubble.pos.y);
-			});
-			let textPos = { x: xSum / hoveredBubbles.length, y: maxY + bubbleSize };
-
-			ctx.fillStyle = "black";
-			ctx.disk(textPos.x, textPos.y, bubbleSize / 2);
-
-			ctx.font = "30px Calibri";
-			ctx.textAlign = "center";
-			ctx.textBaseline = "middle";
-
-			const mod13 = sum % 13;
-			if (mod13 > 0)
-			{
-				ctx.fillText(`${sum - mod13} < ${sum - mod13 + 13}`, textPos.x, textPos.y + bubbleSize);
-			}
-			else if (mod13 < 0)
-			{
-				ctx.fillText(`${sum - mod13 - 13} < ${sum - mod13}`, textPos.x, textPos.y + bubbleSize);
-			}
-
-			
-			ctx.fillStyle = "white";
-			ctx.fillText(sum, textPos.x, textPos.y);
+			ctx.fillText("Press Q to go back to the main menu", canvas.width / 2, canvas.height / 2 + 220);
 		}
 	}
 }
 
+function renderShootingArea(ctx)
+{
+	// Guide line
+	ctx.lineWidth = 2;
+	ctx.lineDir(shootingStartPos.x, shootingStartPos.y, shootingDir, bubbleSize * 2);
+
+	// Next bubbles
+	if (nextValues[0] != null)
+	{
+		renderBubble(ctx, shootingStartPos, {
+			value: nextValues[0],
+			color: shootColor
+		});
+	}
+	ctx.save();
+	ctx.translate(canvas.width / 2, canvas.height);
+	for (let i = 1; i < nextValues.length; i++)
+	{
+		ctx.fillStyle = "black";
+		ctx.fillText(nextValues[i], i * (bubbleSize + 13), -bubbleSize / 2);
+	}
+	ctx.restore();
+}
+
+function renderHints(ctx)
+{
+	if (hoveredBubbles.length == 0)
+		return;
+
+	let sum = 0, maxY = 0, xSum = 0;
+	hoveredBubbles.forEach(bubble => {
+		sum += bubble.value;
+		xSum += bubble.pos.x;
+		maxY = Math.max(maxY, bubble.pos.y);
+	});
+	let textPos = { x: xSum / hoveredBubbles.length, y: maxY + bubbleSize };
+
+	ctx.fillStyle = "black";
+	ctx.disk(textPos.x, textPos.y, bubbleSize / 2);
+
+	ctx.fontSize(1.8);
+	ctx.textCenter();
+
+	const mod13 = sum % 13;
+	if (mod13 > 0)
+	{
+		ctx.fillText(`${sum - mod13} < ${sum - mod13 + 13}`, textPos.x, textPos.y + bubbleSize);
+	}
+	else if (mod13 < 0)
+	{
+		ctx.fillText(`${sum - mod13 - 13} < ${sum - mod13}`, textPos.x, textPos.y + bubbleSize);
+	}
+	
+	ctx.fillStyle = "white";
+	ctx.fillText(sum, textPos.x, textPos.y);
+}
+
 function renderBubble(ctx, pos, bubble)
 {
-	const gradient = ctx.createRadialGradient(pos.x + bubbleSize / 4, pos.y - bubbleSize / 4, bubbleSize / 13, pos.x, pos.y, bubbleSize / 2);
-	gradient.addColorStop(0, "white");
-	gradient.addColorStop(1, bubbleColors[bubble.color]);
-	ctx.fillStyle = gradient;
+	ctx.bubbleGradient(pos.x, pos.y, bubbleSize / 2, bubbleColors[bubble.color]);
 	ctx.disk(pos.x, pos.y, bubbleSize / 2);
 
 	if (hoveredBubbles.includes(bubble))
@@ -343,9 +360,8 @@ function renderBubble(ctx, pos, bubble)
 		ctx.circle(pos.x, pos.y, bubbleSize / 2 - 1);
 	}
 
-	ctx.font = "30px Calibri";
-	ctx.textAlign = "center";
-	ctx.textBaseline = "middle";
+	ctx.fontSize(1.8);
+	ctx.textCenter();
 	ctx.fillStyle = "black";
 	ctx.fillText(bubble.value, pos.x, pos.y);
 }
@@ -358,6 +374,19 @@ function update(delta)
 {
 	if (gameOver)
 	{
+		if (mouse.down)
+		{
+			goToScene(scenes.menu);
+		}
+		return;
+	}
+
+	if (paused)
+	{
+		if (mouse.down)
+		{
+			paused = false;
+		}
 		return;
 	}
 
@@ -391,9 +420,9 @@ function updateHoveredBubbles()
 
 function updateShootBubbles(delta)
 {
-	if (mouse.wheelThisFrame != 0)
+	if (mouse.wheel != 0)
 	{
-		let change = mouse.wheelThisFrame > 0 ? -1 : 1;
+		let change = mouse.wheel > 0 ? -1 : 1;
 		let newValue = shootColor + change;
 		if (newValue >= bubbleColors.length)
 		{
@@ -405,7 +434,7 @@ function updateShootBubbles(delta)
 		}
 		shootColor = newValue;
 
-		zzfx(...[.4,0,55,.03,.01,.03,4,2,,6,-353,.11,,,,,,.55,.03,,-604]);
+		playSound("interact");
 	}
 
 	if (timeSinceLastShot > delayBetweenShots)
@@ -416,7 +445,7 @@ function updateShootBubbles(delta)
 			nextValues.push(pickRandomValue());
 		}
 
-		if (mouse.downThisFrame)
+		if (mouse.down)
 		{
 			shootBubbles.push({
 				value: nextValues[0],
@@ -431,13 +460,13 @@ function updateShootBubbles(delta)
 			if (shotCount % 5 == 0)
 			{
 				pushRandomBubbleLine();
-				if (bubbleGrid.length == 26)
+				if (bubbleGrid.length > 26)
 				{
 					loose();
 				}
 			}
 	
-			zzfx(...[,,354,,,0,,3.6,-6,5,,,,,,,,0,.19]);
+			playSound("shoot");
 		}
 	}
 	else
@@ -516,24 +545,30 @@ function handleBubbleCollision(movingBubble, pos)
 	const zoneSum = newZone.reduce((acc, b) => acc + b.value, 0);
 	if (zoneSum % 13 == 0)
 	{
+		const scoreMultiplier = Math.min(Math.abs(zoneSum) / 13, 1);
+
 		newZone.forEach(b => {
 			bubbleGrid[b.gridPos.y][b.gridPos.x] = null;
 			b.speed = b == movingBubble
 				? setMagnitude(b.speed, vec(130, 260))
 				: setMagnitude(vec(b.pos.x - movingBubble.pos.x, b.pos.y - movingBubble.pos.y), vec(130, 260));
 			delete b.gridPos;
+			b.multiplier = scoreMultiplier;
 		});
 		movingBubbles.push(...newZone);
 
 		const unattachedBubbles = getUnattachedBubbles();
 		unattachedBubbles.forEach(b => {
-			bubbleGrid[b.gridPos.y][b.gridPos.x] = null
+			bubbleGrid[b.gridPos.y][b.gridPos.x] = null;
 			b.speed = setMagnitude(vec(b.pos.x - movingBubble.pos.x, b.pos.y - movingBubble.pos.y), vec(10, 260));
 			delete b.gridPos;
+			b.multiplier = scoreMultiplier;
 		});
 		movingBubbles.push(...unattachedBubbles);
 
-		zzfx(...[.3,.3,,.02,.27,.41,,3.7,7,,,,.21,,,.3,,.4,.27]);
+		playSound("explode");
+
+		clearEmptyLines();
 	}
 	else
 	{
@@ -543,7 +578,7 @@ function handleBubbleCollision(movingBubble, pos)
 
 function scoreBubble(bubble)
 {
-	score += Math.abs(bubble.value);
+	score += Math.abs(bubble.value * bubble.multiplier);
 }
 
 function loose()
@@ -558,19 +593,28 @@ function loose()
 
 export function onEnter(context)
 {
+	registerUpdate(background.update);
+	registerRender(background.render);
+
 	registerRender(render);
 	registerUpdate(update);
 
-	registerKeyDown("l", () => {
-		pushRandomBubbleLine();
+	registerKeyUp("Escape", () => {
+		paused = !paused;
+	});
+
+	registerKeyUp("q", () => {
+		if (paused)
+		{
+			goToScene(scenes.menu);
+		}
+	});
+
+	registerKeyUp("m", () => {
+		toggleMute();
 	});
 
 	const music = zzfxM(...[[[,0,400]],[[[,6,,8,,10,,,,12,,,,8,,,14,,,,]]],[0,0],,{"title":"s","instruments":["0"],"patterns":["0"]}]);
-
-	registerKeyDown("m", () => {
-		gameOver = true;
-		zzfxP(...music);
-	});
 
 	bubbleGrid = [];
 	hoveredBubbles = [];
@@ -587,8 +631,8 @@ export function onEnter(context)
 	shootMaxX = canvas.width - sideGridMargin - bubbleSize / 2;
 
 	gameOver = false;
+	paused = false;
 	score = 0;
-	scoreMultiplier = 1;
 	
 	if (context.difficulty !== undefined)
 	{
