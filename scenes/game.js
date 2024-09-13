@@ -8,7 +8,7 @@ const bubbleSize = 52;
 const lineLen = 13;
 const sideGridMargin = 39;
 const delayBetweenShots = 0.39;
-const shootSpeed = 13 * 80;
+const shootSpeed = 13 * 60;
 const gravity = 13 * 50;
 
 //let bubbleColors = [ "#E40303", "#FF8C00", "#FFED00", "#008026" ];//, "#004CFF", "#732982" ];
@@ -16,7 +16,7 @@ let gameConfig, bubbleColors;
 let bubbleGrid, gridOffsetValue, hoveredBubbles, movingBubbles;
 let nextValues, shootBubbles, shootColor, timeSinceLastShot, shotCount;
 let shootingStartPos, shootingDir, shootMinX, shootMaxX;
-let paused, gameOver, score;
+let paused, gameOver, score, scoringTime, scoringValue;
 
 //#region Bubble Helpers
 
@@ -260,8 +260,12 @@ function render(ctx)
 		}
 		movingBubbles.forEach(b => renderBubble(ctx, b.pos, b));
 
-		ctx.textAlign = "left";
 		ctx.fillStyle = "black";
+		ctx.textAlign = "left";
+		if (scoringTime > 0)
+		{
+			ctx.fillText(scoringValue, sideGridMargin * 1.5 + ctx.measureText("Score: ").width, canvas.height - bubbleSize * 1.5);
+		}
 		ctx.fillText("Score: " + score, sideGridMargin * 1.5, canvas.height - bubbleSize);
 		ctx.fillText("Next line in: " + (gameConfig.shotsBetweenLine - shotCount % gameConfig.shotsBetweenLine), sideGridMargin * 1.5, canvas.height - bubbleSize / 2);
 
@@ -391,6 +395,11 @@ function update(delta)
 		return;
 	}
 
+	if (scoringTime > 0)
+	{
+		scoringTime -= delta;
+	}
+
 	for (let i = movingBubbles.length - 1; i >= 0; i--)
 	{
 		const bubble = movingBubbles[i];
@@ -496,7 +505,11 @@ function updateShootBubbles(delta)
 		}
 		else
 		{
+			const gridPos = screenPosToGrid(shootBubble.pos, true);
 			visitBubbleGrid((x, y, bubble) => {
+				if (Math.abs(gridPos.x - x) > 2 || Math.abs(gridPos.y - y) > 2)
+					return;
+
 				const dist = distToBubble(shootBubble.pos, bubble);
 				if (dist <= bubbleSize)
 				{
@@ -538,7 +551,7 @@ function handleBubbleCollision(movingBubble, pos)
 	const zoneSum = newZone.reduce((acc, b) => acc + b.value, 0);
 	if (zoneSum % 13 == 0)
 	{
-		const scoreMultiplier = Math.min(Math.abs(zoneSum) / 13, 1);
+		const scoreMultiplier = Math.max(Math.abs(zoneSum) / 13, 1);
 
 		newZone.forEach(b => {
 			bubbleGrid[b.gridPos.y][b.gridPos.x] = null;
@@ -581,6 +594,9 @@ function handleBubbleCollision(movingBubble, pos)
 function scoreBubble(bubble)
 {
 	score += Math.abs(bubble.value * bubble.multiplier);
+	scoringTime = Math.min(scoringTime + 0.2, 2);
+	scoringValue = Math.abs(bubble.value) + " x" + bubble.multiplier;
+	playSound("score");
 }
 
 function loose()
@@ -633,6 +649,8 @@ export function onEnter(context)
 	gameOver = false;
 	paused = false;
 	score = 0;
+	scoringTime = 0;
+	scoringValue = 1;
 	
 	if (context.difficulty !== undefined)
 	{
